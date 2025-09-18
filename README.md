@@ -1,4 +1,3 @@
-# E-commerce-Price-Analytics
 # ระบบวิเคราะห์และคาดการณ์ราคาสินค้าออนไลน์ (E-commerce Price Analytics)
 
 ## 🔎 Overview
@@ -13,11 +12,12 @@
 - พัฒนา Dashboard และระบบแจ้งเตือน real-time
 
 ## 🛠️ Tech Stack
-- **Data Collection:** Python (BeautifulSoup, Selenium), APIs (eBay, CamelCamelCamel)
-- **Data Processing:** Pandas, Numpy
-- **Modeling:** Prophet, ARIMA, XGBoost
-- **Visualization/Dashboard:** Streamlit, Dash, Power BI
+- **Coding:** Google Colab, Python, APIs 
+- **Data Processing:** Pandas, Numpy (//draft)
+- **Modeling:** (waiting)
+- **Visualization/Dashboard:** Tableau Public, Power BI,  Plotly Dashboard
 - **Pipeline & Storage:** Airflow, SQLite/PostgreSQL, GitHub Actions
+- **Collaboration:** GitHub (code), Discord (task), Docs (doc), IG (chat)
 
 ## 👥 Team Roles
 - Project Manager / Analyst: Tee
