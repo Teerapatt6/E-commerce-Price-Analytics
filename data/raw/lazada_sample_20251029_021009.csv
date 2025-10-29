@@ -1,0 +1,3 @@
+product_id,product_name,price,timestamp,platform
+P001,Sample A,100.0,2025-10-29T02:10:09.311828,lazada
+P002,Sample B,200.0,2025-10-29T02:10:09.311828,lazada
