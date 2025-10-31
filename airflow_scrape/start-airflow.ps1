@@ -1,9 +1,9 @@
 $DAGS_DIR = "D:\Network project\dags"
 $AIRFLOW_DB_DIR = "D:\Network project\airflow_db"
 $DATA_DIR = "D:\Network project\data"  # เก็บ CSV
-$IMAGE_NAME = "DNDS-airflow"
-$WEBSERVER_NAME = "DNDS-airflow-webserver"
-$SCHEDULER_NAME = "DNDS-airflow-scheduler"
+$IMAGE_NAME = "dnds-airflow"
+$WEBSERVER_NAME = "dnds-airflow-webserver"
+$SCHEDULER_NAME = "dnds-airflow-scheduler"
 
 docker rm -f $WEBSERVER_NAME -ErrorAction SilentlyContinue
 docker rm -f $SCHEDULER_NAME -ErrorAction SilentlyContinue
