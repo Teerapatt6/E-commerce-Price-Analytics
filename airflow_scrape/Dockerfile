@@ -19,6 +19,7 @@ RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+') \
 
 USER airflow
 
-RUN pip install --no-cache-dir selenium
+COPY --chown=airflow:airflow requirements.txt /requirements.txt
+RUN pip install --no-cache-dir -r /requirements.txt
 
 COPY --chown=airflow:airflow ./dags /opt/airflow/dags

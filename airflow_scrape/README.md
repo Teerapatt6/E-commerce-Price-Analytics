@@ -6,26 +6,18 @@
 docker build -t dnds-airflow .
 ```
 
-### 2. ปรับ path ใน start-airflow.ps1
-แก้ค่าตัวแปรให้ตรงกับเครื่องที่รัน:
-```powershell
-$DAGS_DIR = "D:\Network project\dags"
-$AIRFLOW_DB_DIR = "D:\Network project\airflow_db"
-$DATA_DIR = "D:\Network project\data"
-```
-
-### 3. รัน Airflow
+### 2. รัน Airflow
 ```powershell
 ./start-airflow.ps1
 ```
 
-### 4. เข้าสู่ระบบ Airflow
+### 3. เข้าสู่ระบบ Airflow
 เปิดเว็บเบราว์เซอร์ไปที่: http://localhost:8080  
 Login ด้วย username/password: admin/admin
 
 ---
 
-### 5. Pause / Unpause DAGs
+### 4. Pause / Unpause DAGs
 Pause DAG:
 ```powershell
 docker exec -it dnds-airflow-webserver airflow dags pause scrape_products_daily
@@ -36,12 +28,12 @@ Unpause DAG:
 docker exec -it dnds-airflow-webserver airflow dags unpause scrape_products_daily
 ```
 
-### 6. ตรวจสอบ DAG logs
+### 5. ตรวจสอบ DAG logs
 ```powershell
 docker logs -f dnds-airflow-webserver
 ```
 
-### 7. ปิด Airflow
+### 6. ปิด Airflow
 หยุด container ทั้งหมด:
 ```powershell
 docker stop dnds-airflow-webserver dnds-airflow-scheduler
