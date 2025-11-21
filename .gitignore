@@ -44,7 +44,6 @@ __pypackages__/
 *.egg
 
 .ipynb_checkpoints/
-*.ipynb
 
 node_modules/
 npm-debug.log
