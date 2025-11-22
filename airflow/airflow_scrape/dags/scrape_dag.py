@@ -7,7 +7,7 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 
 PRODUCT_URLS = [
-    "https://pricehistory.app/p/samsung-galaxy-a55-5g-awesome-iceblue-8gb-1FVhrpce"
+    "https://pricehistory.app/p/samsung-galaxy-s24-5g-ai-smartphone-cobalt-6pOg3s2h"
 ]
 MAX_WAIT = 10 
 SHEET_KEY = "19_PDN8T2OjMV49tQTTblBPPtt6C_9oWg-yeSjqRYjFA" 
@@ -108,7 +108,8 @@ with DAG(
     'scrape_pricehistory_daily',
     default_args=default_args,
     description='Scrape price history and update Google Sheet daily at 8 AM',
-    schedule_interval='@daily',
+    # schedule_interval='@daily',
+    schedule_interval='@once',
     # schedule_interval='0 8 * * *',
     start_date=datetime(2025, 10, 21),
     catchup=False,
