@@ -68,6 +68,7 @@ def load_scaled_features_and_target():
         conn.close()
 
 def generate_unscaled_features_for_scaler(df):
+
     price_series = df['price_inr']
     price_thb_series = df['price_thb']
     
@@ -128,6 +129,7 @@ model_cache = {
 }
 
 def train_xgb(X_scaled, y, scaler):
+    
     n_total = len(X_scaled)
     n_train = int(n_total * 0.7)
     n_val = int(n_total * 0.15)
@@ -165,6 +167,7 @@ def train_xgb(X_scaled, y, scaler):
     return bst, scaler, n_val
 
 def predict_30_days(df_features_unscaled_latest, bst, scaler, latest_price, latest_date, n_days=30):
+    
     X_next_unscaled = df_features_unscaled_latest.copy()
     
     pred_prices = []
@@ -230,6 +233,7 @@ async def get_trained_model():
 
 @app.get("/predict", tags=["Prediction"])
 async def predict():
+
     try:
         cache = await get_trained_model()
         
@@ -247,7 +251,7 @@ async def predict():
 
         return {
             "status": "success",
-            "model_engine": "XGBoost (DB-Loaded Scaled Features)",
+            "product_url": os.getenv("PRODUCT_URL"),  
             "latest_date": str(cache['last_date'].date()),
             "latest_price_inr": round(cache['last_price'], 2),
             "latest_price_thb": round(cache['last_thb_price'], 2),
@@ -262,9 +266,10 @@ async def predict():
                 for _, row in predictions_df.iterrows()
             ]
         }
+
     except Exception as e:
         return {"status": "error", "message": f"An error occurred during training or prediction: {e}"}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("fastapi_price_predictor:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("fastapi_xgb_api:app", host="0.0.0.0", port=8000, reload=True)
