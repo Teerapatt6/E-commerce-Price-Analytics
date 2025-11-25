@@ -131,7 +131,7 @@ model_cache = {
 def train_xgb(X_scaled, y, scaler):
     
     n_total = len(X_scaled)
-    n_train = int(n_total * 0.7)
+    n_train = int(n_total * 0.85)
     n_val = int(n_total * 0.15)
     
     X_train_scaled = X_scaled[:n_train]
