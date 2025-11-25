@@ -2,3 +2,7 @@ requests
 gspread
 google-auth
 selenium
+scikit-learn
+pandas
+numpy
+psycopg2-binary
