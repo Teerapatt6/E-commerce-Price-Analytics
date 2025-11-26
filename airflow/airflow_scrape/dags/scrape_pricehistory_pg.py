@@ -14,6 +14,7 @@ load_dotenv()
 PRODUCT_URL = os.getenv("PRODUCT_URL") 
 MAX_WAIT = 10
 DATABASE_URL = os.getenv("DATABASE_URL") 
+SCHEDULE_INTERVAL = '0 8 * * *' 
 
 # ----------------- Web Scraping -----------------
 def create_driver():
@@ -116,45 +117,75 @@ def create_features():
     price_diff_series = price_series_clean.diff(1)
     price_thb_diff_series = price_thb_series_clean.diff(1)
 
-    X_feat = pd.DataFrame()
+    X_feat_unscaled = pd.DataFrame() 
+
     lags = [1,2,3,5,7,10,14,21,30]
 
-    # --- 1. Lagged Price Level Feature ---
-    X_feat['price_lag_1'] = price_series_clean.shift(1)
+    # --- Lagged Price Level Feature ---
+    X_feat_unscaled['price_lag_1'] = price_series_clean.shift(1)
 
-    # --- 2. Lagged Price Difference Features ---
+    # --- Lagged Price Difference Features ---
     for lag in lags[1:]:
-        X_feat[f'diff_lag_{lag}'] = price_diff_series.shift(lag)
+        X_feat_unscaled[f'diff_lag_{lag}'] = price_diff_series.shift(lag)
 
-    # --- 3. Rolling Mean/Std (Moving Averages & Volatility) Features ---
-    X_feat['diff_rolling7_mean'] = price_diff_series.rolling(7).mean().bfill() 
-    X_feat['diff_rolling30_mean'] = price_diff_series.rolling(30).mean().bfill() 
-    X_feat['diff_rolling7_std'] = price_diff_series.rolling(7).std().bfill() 
-    X_feat['diff_rolling30_std'] = price_diff_series.rolling(30).std().bfill() 
+    # --- Rolling Mean/Std (Moving Averages & Volatility) Features ---
+    X_feat_unscaled['diff_rolling7_mean'] = price_diff_series.rolling(7).mean().bfill() 
+    X_feat_unscaled['diff_rolling30_mean'] = price_diff_series.rolling(30).mean().bfill() 
+    X_feat_unscaled['diff_rolling7_std'] = price_diff_series.rolling(7).std().bfill() 
+    X_feat_unscaled['diff_rolling30_std'] = price_diff_series.rolling(30).std().bfill() 
 
-    # --- 4. Exponentially Weighted Moving Average (EWMA) Features ---
+    # --- Exponentially Weighted Moving Average (EWMA) Features ---
     alphas = [0.1,0.3,0.5,0.7]
     for a in alphas:
         col_name = f"ewma_diff_alpha_{str(a).replace('.', '_')}"
-        X_feat[col_name] = price_diff_series.ewm(alpha=a, adjust=False).mean()
+        X_feat_unscaled[col_name] = price_diff_series.ewm(alpha=a, adjust=False).mean()
 
-    # --- 5. Features from THB Price (Multivariate) ---
-    X_feat['thb_diff_lag_1'] = price_thb_diff_series.shift(1) 
-    X_feat['thb_diff_rolling7'] = price_thb_diff_series.rolling(7).mean().bfill() 
+    # --- Features from THB Price (Multivariate) ---
+    X_feat_unscaled['thb_diff_lag_1'] = price_thb_diff_series.shift(1) 
+    X_feat_unscaled['thb_diff_rolling7'] = price_thb_diff_series.rolling(7).mean().bfill() 
 
-    # --- 6. Date/Calendar Features ---
-    X_feat['dayofweek'] = dates_clean.dt.dayofweek.astype(float) # วันในสัปดาห์ (0=จันทร์, 6=อาทิตย์)
-    X_feat['dayofyear'] = dates_clean.dt.dayofyear.astype(float) # วันที่ของปี (1-365)
-    X_feat['dayofmonth'] = dates_clean.dt.day.astype(float) # วันที่ของเดือน (1-31)
+    # --- Date/Calendar Features ---
+    X_feat_unscaled['dayofweek'] = dates_clean.dt.dayofweek.astype(float) 
+    X_feat_unscaled['dayofyear'] = dates_clean.dt.dayofyear.astype(float) 
+    X_feat_unscaled['dayofmonth'] = dates_clean.dt.day.astype(float) 
 
-    X_feat = X_feat.fillna(0)
+    X_feat_unscaled.fillna(0, inplace=True) 
+    
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X_feat)
-    X_scaled_df = pd.DataFrame(X_scaled, columns=X_feat.columns)
-    X_scaled_df['date'] = dates_clean  
+    X_scaled = scaler.fit_transform(X_feat_unscaled)
+    X_scaled_df = pd.DataFrame(X_scaled, columns=X_feat_unscaled.columns)
+    X_scaled_df['date'] = dates_clean 
+    
+    X_unscaled_df = X_feat_unscaled.copy()
+    X_unscaled_df['date'] = dates_clean 
 
-    # ---------------- SQL ----------------
+    # ---------------- SQL: save Unscaled Features ----------------
+    feature_columns = X_feat_unscaled.columns.tolist()
+    column_defs = ", ".join([f"{c} FLOAT" for c in feature_columns])
+    
     cur = conn.cursor()
+    
+    cur.execute(f"""
+        CREATE TABLE IF NOT EXISTS price_features_unscaled (
+            date DATE UNIQUE,
+            {column_defs}
+        )
+    """)
+    
+    col_names_sql = "date, " + ", ".join(feature_columns)
+    placeholders = "%s, " + ", ".join(["%s"] * len(feature_columns))
+
+    for _, row in X_unscaled_df.iterrows():
+        row_vals = [row['date']] + [float(row[c]) for c in feature_columns]
+        cur.execute(f"""
+            INSERT INTO price_features_unscaled ({col_names_sql})
+            VALUES ({placeholders})
+            ON CONFLICT (date) DO NOTHING;
+        """, tuple(row_vals))
+    
+    conn.commit()
+    print(f"Unscaled Feature storage updated: {len(X_unscaled_df)} rows")
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS price_features (
             date DATE UNIQUE,
@@ -182,8 +213,10 @@ def create_features():
             dayofmonth FLOAT
         )
     """)
+    
+    # save Scaled Features
     for _, row in X_scaled_df.iterrows():
-        row_vals = [row['date']] + [float(row[c]) for c in X_feat.columns]
+        row_vals = [row['date']] + [float(row[c]) for c in X_feat_unscaled.columns]
         cur.execute("""
             INSERT INTO price_features (
                 date, price_lag_1, diff_lag_2, diff_lag_3, diff_lag_5, diff_lag_7,
@@ -194,10 +227,11 @@ def create_features():
             ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (date) DO NOTHING;
         """, tuple(row_vals))
+    
     conn.commit()
     cur.close()
     conn.close()
-    print(f"Feature storage updated: {len(X_scaled_df)} rows")
+    print(f"Scaled Feature storage updated: {len(X_scaled_df)} rows")
 
 # ----------------- DAG -----------------
 def scrape_and_create_features():
@@ -217,6 +251,7 @@ with DAG(
     "scrape_pricehistory_pg_features_clean",
     default_args=default_args,
     schedule_interval='@once',
+    # SCHEDULE_INTERVAL = SCHEDULE_INTERVAL, 
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=["scraping", "postgres", "features", "cleaned"],

@@ -18,8 +18,6 @@ logs/
 plugins/__pycache__/
 .airflow/
 
-*.json
-quixotic-strand-453812-r2-275fa3e318d7.json
 
 *.pid
 *.tar
