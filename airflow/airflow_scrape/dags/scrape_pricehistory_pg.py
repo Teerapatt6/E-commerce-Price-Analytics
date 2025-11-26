@@ -78,12 +78,39 @@ def insert_to_postgres(df):
         cur.execute("""
             INSERT INTO pricehistory (date, price_inr, price_thb)
             VALUES (%s, %s, %s)
-            ON CONFLICT (date) DO NOTHING;
+            ON CONFLICT (date) DO UPDATE SET
+            price_inr = EXCLUDED.price_inr,
+            price_thb = EXCLUDED.price_thb;
         """, (row["date"], row["price_inr"], row["price_thb"]))
     conn.commit()
     cur.close()
     conn.close()
+    print(f"Raw Price History updated: {len(df)} rows")
 
+def insert_cleaned_prices_to_postgres(df_clean):
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS pricehistory_cleaned (
+            id SERIAL PRIMARY KEY,
+            date DATE UNIQUE,
+            price_inr_clean NUMERIC,
+            price_thb_clean NUMERIC
+        )
+    """)
+    for _, row in df_clean.iterrows():
+        cur.execute("""
+            INSERT INTO pricehistory_cleaned (date, price_inr_clean, price_thb_clean)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (date) DO UPDATE SET
+            price_inr_clean = EXCLUDED.price_inr_clean,
+            price_thb_clean = EXCLUDED.price_thb_clean;
+        """, (row["date"], row["price_inr_clean"], row["price_thb_clean"]))
+    conn.commit()
+    cur.close()
+    conn.close()
+    print(f"Cleaned Price History updated: {len(df_clean)} rows")
+    
 # ----------------- Feature Engineering -----------------
 def create_features():
     conn = connect_db()
@@ -93,9 +120,6 @@ def create_features():
     price_thb_series = df['price_thb'].astype(float)
 
     # ---------------- Clean by PCT change ----------------
-    price_series = df['price_inr'].astype(float)
-    price_thb_series = df['price_thb'].astype(float)
-    
     threshold = 0.1
     data_scaled = (price_series - price_series.min()) / (price_series.max() - price_series.min())
     pct_change = data_scaled.pct_change().abs().fillna(0)
@@ -112,6 +136,14 @@ def create_features():
     price_thb_series_clean = price_thb_series_clean.ffill()
 
     dates_clean = df['date']
+    
+    df_cleaned = pd.DataFrame({
+        'date': dates_clean,
+        'price_inr_clean': price_series_clean,
+        'price_thb_clean': price_thb_series_clean
+    })
+    
+    insert_cleaned_prices_to_postgres(df_cleaned)
 
     # ----------------- Feature Creation ----------------
     price_diff_series = price_series_clean.diff(1)
@@ -180,7 +212,8 @@ def create_features():
         cur.execute(f"""
             INSERT INTO price_features_unscaled ({col_names_sql})
             VALUES ({placeholders})
-            ON CONFLICT (date) DO NOTHING;
+            ON CONFLICT (date) DO UPDATE SET
+            {', '.join([f'{c} = EXCLUDED.{c}' for c in feature_columns])}
         """, tuple(row_vals))
     
     conn.commit()
@@ -215,17 +248,20 @@ def create_features():
     """)
     
     # save Scaled Features
+    update_cols_sql = ', '.join([f'{c} = EXCLUDED.{c}' for c in X_feat_unscaled.columns])
+    
     for _, row in X_scaled_df.iterrows():
         row_vals = [row['date']] + [float(row[c]) for c in X_feat_unscaled.columns]
-        cur.execute("""
+        cur.execute(f"""
             INSERT INTO price_features (
                 date, price_lag_1, diff_lag_2, diff_lag_3, diff_lag_5, diff_lag_7,
                 diff_lag_10, diff_lag_14, diff_lag_21, diff_lag_30,
                 diff_rolling7_mean, diff_rolling30_mean, diff_rolling7_std, diff_rolling30_std,
                 ewma_diff_alpha_0_1, ewma_diff_alpha_0_3, ewma_diff_alpha_0_5, ewma_diff_alpha_0_7,
                 thb_diff_lag_1, thb_diff_rolling7, dayofweek, dayofyear, dayofmonth
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT (date) DO NOTHING;
+            ) VALUES ({placeholders})
+            ON CONFLICT (date) DO UPDATE SET
+            {update_cols_sql}
         """, tuple(row_vals))
     
     conn.commit()
@@ -237,8 +273,8 @@ def create_features():
 def scrape_and_create_features():
     df = scrape_pricehistory(PRODUCT_URL)
     if not df.empty:
-        insert_to_postgres(df)
-    create_features()
+        insert_to_postgres(df) #
+    create_features() 
 
 default_args = {
     "owner": "airflow",
@@ -248,7 +284,7 @@ default_args = {
 }
 
 with DAG(
-    "scrape_pricehistory_pg_features_clean",
+    "scrape_pricehistory_pg",
     default_args=default_args,
     schedule_interval='@once',
     # SCHEDULE_INTERVAL = SCHEDULE_INTERVAL, 

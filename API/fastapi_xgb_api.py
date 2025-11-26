@@ -32,14 +32,15 @@ def connect_db():
         print(f"Error connecting to database: {e}")
         raise HTTPException(status_code=500, detail="Database connection failed.")
 
-def load_price_history():
+def load_cleaned_price_history():
+    """Loads price history from the cleaned table to ensure consistency with features."""
     conn = connect_db()
     try:
-        df = pd.read_sql("SELECT date, price_inr, price_thb FROM pricehistory ORDER BY date ASC;", conn)
-        df['date'] = pd.to_datetime(df['date'])
-        df['price_inr'] = df['price_inr'].astype(float)
-        df['price_thb'] = df['price_thb'].astype(float)
-        return df
+        df_clean = pd.read_sql("SELECT date, price_inr_clean, price_thb_clean FROM pricehistory_cleaned ORDER BY date ASC;", conn)
+        df_clean['date'] = pd.to_datetime(df_clean['date'])
+        df_clean['price_inr_clean'] = df_clean['price_inr_clean'].astype(float)
+        df_clean['price_thb_clean'] = df_clean['price_thb_clean'].astype(float)
+        return df_clean
     finally:
         conn.close()
 
@@ -65,21 +66,21 @@ def load_scaled_features_and_target():
         df_features = pd.read_sql("SELECT * FROM price_features ORDER BY date ASC;", conn)
         df_features['date'] = pd.to_datetime(df_features['date'])
 
-        df_history = pd.read_sql("SELECT date, price_inr FROM pricehistory ORDER BY date ASC;", conn)
-        df_history['date'] = pd.to_datetime(df_history['date'])
-        df_history['price_inr'] = df_history['price_inr'].astype(float)
+        df_cleaned = pd.read_sql("SELECT date, price_inr_clean FROM pricehistory_cleaned ORDER BY date ASC;", conn)
+        df_cleaned['date'] = pd.to_datetime(df_cleaned['date'])
+        df_cleaned['price_inr_clean'] = df_cleaned['price_inr_clean'].astype(float)
         
-        df_merged = pd.merge(df_features, df_history, on='date', how='inner')
+        df_merged = pd.merge(df_features, df_cleaned, on='date', how='inner')
         
-        price_series_clean = df_merged['price_inr']
+        price_series_clean = df_merged['price_inr_clean']
         price_diff_series = price_series_clean.diff(1)
         
         df_merged = df_merged.iloc[31:].reset_index(drop=True)
         y = price_diff_series.iloc[31:].values.astype(float)
         
-        X_scaled = df_merged.drop(columns=['date', 'price_inr'])
+        X_scaled = df_merged.drop(columns=['date', 'price_inr_clean']) 
         
-        return X_scaled.astype(float), y, df_history
+        return X_scaled.astype(float), y, df_merged 
     finally:
         conn.close()
 
@@ -87,23 +88,25 @@ model_cache = {
     'bst': None,
     'scaler': None,
     'df_features_latest': None,
-    'last_price': None,
-    'last_thb_price': None,
+    'last_price': None, 
+    'last_thb_price': None, 
     'exchange_rate': None,
     'last_date': None,
     'is_trained': False
 }
 
-def train_xgb(X_scaled, y):
-    
+def train_xgb(X_scaled: pd.DataFrame, y: np.ndarray):
     n_total = len(X_scaled)
+    if n_total < 50:
+        raise ValueError(f"Not enough data to train the model (only {n_total} points).")
+        
     n_train = int(n_total * 0.85)
-    n_val = int(n_total * 0.15)
+    n_val = n_total - n_train 
     
-    X_train_scaled = X_scaled[:n_train]
-    X_val_scaled = X_scaled[n_train:n_train+n_val]
+    X_train_scaled = X_scaled.iloc[:n_train]
+    X_val_scaled = X_scaled.iloc[n_train:]
     y_train = y[:n_train]
-    y_val = y[n_train:n_train+n_val]
+    y_val = y[n_train:]
 
     dtrain = xgb.DMatrix(X_train_scaled.values, label=y_train)
     dval = xgb.DMatrix(X_val_scaled.values, label=y_val)
@@ -132,7 +135,7 @@ def train_xgb(X_scaled, y):
     
     return bst, n_val
 
-def predict_30_days(df_features_unscaled_latest, bst, scaler, latest_price, latest_date, n_days=30):
+def predict_30_days(df_features_unscaled_latest: pd.DataFrame, bst: xgb.Booster, scaler: StandardScaler, latest_price: float, latest_date: pd.Timestamp, n_days: int=30):
     
     X_next_unscaled = df_features_unscaled_latest.copy() 
     
@@ -164,14 +167,14 @@ async def get_trained_model(force_train: bool = False):
     if force_train or not model_cache['is_trained']:
         print("--- เริ่มการฝึกฝนโมเดลใหม่ ---" if force_train else "--- เริ่มต้นการฝึกฝนโมเดล ---")
         try:
-            df_history = load_price_history()
-            if df_history.empty:
-                raise ValueError("ไม่พบข้อมูลในตาราง pricehistory.")
+            df_cleaned = load_cleaned_price_history()
+            if df_cleaned.empty:
+                raise ValueError("ไม่พบข้อมูลในตาราง pricehistory_cleaned. โปรดตรวจสอบว่ารัน DAG แล้ว.")
 
-            latest_date = df_history['date'].iloc[-1]
-            latest_price_inr = df_history['price_inr'].iloc[-1]
-            latest_price_thb = df_history['price_thb'].iloc[-1]
-            latest_exchange_rate = latest_price_thb / latest_price_inr
+            latest_date = df_cleaned['date'].iloc[-1]
+            latest_price_inr = df_cleaned['price_inr_clean'].iloc[-1]
+            latest_price_thb = df_cleaned['price_thb_clean'].iloc[-1]
+            latest_exchange_rate = latest_price_thb / latest_price_inr 
 
             X_unscaled_all = load_unscaled_features_for_scaler() 
             
@@ -254,7 +257,7 @@ async def predict():
     except HTTPException as e:
         raise e
     except Exception as e:
-        return {"status": "error", "message": f"เกิดข้อผิดพลาดระหว่างการทำนาย: {e}"}
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred during prediction: {e}")
 
 if __name__ == "__main__":
     import uvicorn
