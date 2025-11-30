@@ -1,5 +1,5 @@
 # E-commerce Price Analytics & Forecasting System
-## Case Study: Samsung Galaxy S24 (Amazon India)
+**Case Study: Samsung Galaxy S24 (Amazon India)**
 
 ## 🔎 Overview
 โปรเจกต์นี้เป็นส่วนหนึ่งของวิชา CSS342 Data Science & Data Engineering โดยมีวัตถุประสงค์เพื่อพัฒนาระบบอัตโนมัติ (Automated Pipeline) สำหรับติดตามและพยากรณ์ราคาสมาร์ทโฟน Samsung Galaxy S24 บนแพลตฟอร์ม Amazon India
