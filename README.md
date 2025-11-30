@@ -26,13 +26,13 @@
 5. **Deployment:** Model Serving ผ่าน API
 
 ## 🛠️ Tech Stack
-## Data Engineering
+**Data Engineering**
 - **Orchestration:** Apache Airflow
 - **Scraping:** Selenium WebDriver, Google Chrome (Headless)
 - **Database:** PostgreSQL
 - **Containerization:** Docker
 
-## Data Science
+**Data Science**
 - **Language:** Python
 - **Data Processing:** Pandas, NumPy
 - **Machine Learning:** XGBoost, Scikit-learn
