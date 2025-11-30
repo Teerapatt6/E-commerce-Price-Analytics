@@ -45,12 +45,4 @@
 - Data Engineer: Namsai
 - Data Scientist/Engineer: Tee (2)
 
-##📊 Model Performance
-| Model Type | Algorithm | RMSE | MAE | Status |
-| :--- | :--- | :---: | ---: |
-| Ensemble | XGBoost | 241.30 | 70.17 | 🏆 Winner |
-| Deep Learning | GRU | 295.40 | 237.68 | Runner-up |
-| Deep Learning | 1D-CNN | 320.10 | 265.66 | - |
-| Statistical | ARIMA | 420.15 | - | Baseline |
-
 **Disclaimer:** ข้อมูลราคาสินค้าใช้เพื่อการศึกษาและวิจัยเท่านั้น
